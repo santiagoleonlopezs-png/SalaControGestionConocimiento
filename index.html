@@ -35,7 +35,7 @@ textarea,input{width:100%;background:#071522;color:var(--text);border:1px solid 
 <section class="panel"><h2>Tablero de evolución</h2><div class="metrics" id="metrics"></div><canvas id="chart"></canvas></section>
 <section class="panel"><h2>Historial de decisiones</h2><div class="history" id="history"></div></section>
 </main><aside>
-<section class="panel"><h2>🏆 Ranking en vivo</h2><div id="ranking"><span class="muted">Esperando equipos…</span></div></section>
+<section class="panel"><h2>🏆 Ranking en vivo <button id="refreshRanking" type="button" title="Actualizar ranking" style="width:auto;padding:5px 9px;margin-left:8px">↻</button></h2><div id="ranking"><span class="muted">Esperando equipos…</span></div></section>
 <section class="panel"><h2>Centro de decisiones</h2><div class="muted">Selecciona entre 1 y 3 prácticas. La combinación y el contexto importan.</div><div class="grid" id="practices"></div>
 <h3>Justificación</h3><div class="muted">Observamos ___, inferimos ___, por eso intervenimos con ___.</div><textarea id="why" maxlength="220" placeholder="Escribe entre 20 y 220 caracteres"></textarea><div class="muted"><span id="chars">0</span>/220</div><button class="primary" id="go" disabled>Confirmar decisión</button><div id="feedback"></div></section>
 </aside></div>
@@ -227,8 +227,18 @@ $("continueRound").onclick=async()=>{
   }
 };
 async function save(){if(!firebaseReady||!S.team||!CLASS_CODE)return;try{await setDoc(doc(db,COLLECTION,(GAME_ID+"__"+CLASS_CODE+"__"+S.team).replace(/[^a-zA-Z0-9_-]/g,"_")),{gameId:GAME_ID,classCode:CLASS_CODE,teamName:S.team,score:score(),round:S.r+1,credits:S.c,metrics:S.m,history:S.hist,finished:S.finished,updatedAt:serverTimestamp()},{merge:true})}catch(e){console.error(e)}}
-function connectRanking(){if(!firebaseReady){$("ranking").innerHTML="<span class='muted'>Firebase aún no está configurado en el bloque superior del index.</span>";return}
-const q=query(collection(db,COLLECTION),orderBy("score","desc"));onSnapshot(q,snap=>{let rows=[];snap.forEach(d=>{let x=d.data();if(x.gameId===GAME_ID&&x.classCode===CLASS_CODE)rows.push(x)});$("ranking").innerHTML=rows.slice(0,15).map((x,i)=>`<div class="rankrow"><b>${i+1}</b><span>${x.teamName}</span><b>${x.score}</b></div>`).join("")||"<span class='muted'>Aún no hay equipos en esta sala.</span>"})}
+let rankingUnsubscribe=null;
+function connectRanking(){
+ if(!firebaseReady){$("ranking").innerHTML="<span class='muted'>Firebase aún no está configurado en el bloque superior del index.</span>";return}
+ if(rankingUnsubscribe)rankingUnsubscribe();
+ const q=query(collection(db,COLLECTION),orderBy("score","desc"));
+ rankingUnsubscribe=onSnapshot(q,snap=>{
+   let rows=[];
+   snap.forEach(d=>{let x=d.data();if(x.gameId===GAME_ID&&x.classCode===CLASS_CODE)rows.push(x)});
+   $("ranking").innerHTML=rows.slice(0,15).map((x,i)=>`<div class="rankrow"><b>${i+1}</b><span>${x.teamName}</span><b>${x.score}</b></div>`).join("")||"<span class='muted'>Aún no hay equipos en esta sala.</span>";
+ });
+}
+$("refreshRanking").onclick=()=>connectRanking();
 let chartObj;function draw(){if(chartObj)chartObj.destroy();chartObj=new Chart($("chart"),{type:"line",data:{labels:S.scores.map((_,i)=>"R"+(i+1)),datasets:[{label:"Desempeño sistémico",data:S.scores,tension:.25}]},options:{plugins:{legend:{labels:{color:"#f3f8fc"}}},scales:{x:{ticks:{color:"#9bb2c8"}},y:{min:0,max:110,ticks:{color:"#9bb2c8"}}}}})}
 let sec=540,tm;function resetTimer(){clearInterval(tm);sec=540;$("timer").textContent="09:00";tm=setInterval(()=>{sec--;$("timer").textContent=String(Math.floor(sec/60)).padStart(2,"0")+":"+String(sec%60).padStart(2,"0");$("timer").classList.toggle("danger",sec<=90);if(sec<=0){clearInterval(tm);$("timer").textContent="TIEMPO"}},1000)}
 resetTimer();render();
